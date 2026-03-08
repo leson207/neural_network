@@ -116,7 +116,7 @@ u0 trainer_train(Trainer *trainer)
 
         f32 avg_cost=total_cost/(f32)test->num_samples;
         printf(
-            "Test Completed. Accuracy: %5lu / %5lu (%.1f%%), Average Cost: %.4f\n",
+            "Test Completed! Accuracy: %5lu/%5lu (%.1f%%) | Average Cost: %.4f\n",
             num_correct, test->num_samples, (f32)num_correct / test->num_samples* 100.0f,
             avg_cost
         );

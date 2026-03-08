@@ -1,16 +1,43 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+
+#endif
+
 #include "arena.h"
 
 #include <string.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
-
-struct Arena
+static u32 get_pagesize(u0)
 {
-    u64 reserve_size;
-    u64 commit_size;
+    return (u32)sysconf(_SC_PAGESIZE);
+}
 
-    u64 pos;
-    u64 commit_pos;
-};
+static u0 *mem_reserve(u64 size)
+{
+    u0 *out = mmap(NULL, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if(out==MAP_FAILED) return NULL;
+
+    return out;
+}
+
+static b32 mem_commit(u0 *ptr, u64 size)
+{
+    return !mprotect(ptr, size, PROT_READ | PROT_WRITE);
+}
+
+static b32 mem_decommit(u0 *ptr, u64 size)
+{
+    if(mprotect(ptr, size, PROT_NONE)) return false;
+
+    return !madvise(ptr, size, MADV_DONTNEED);
+}
+
+static b32 mem_release(u0 *ptr, u64 size)
+{
+    return !munmap(ptr, size);
+}
 
 Arena *arena_create(u64 reserve_size, u64 commit_size)
 {
@@ -21,7 +48,7 @@ Arena *arena_create(u64 reserve_size, u64 commit_size)
 
     struct Arena *arena=mem_reserve(reserve_size);
 
-    if(!mem_commit(arena, commit_size)) return NULL;
+    if(!arena || !mem_commit(arena, commit_size)) return NULL;
 
     arena->reserve_size=reserve_size;
     arena->commit_size=commit_size;
@@ -40,9 +67,7 @@ u0 *arena_push(Arena *arena, u64 size, b32 non_zero)
 
     if(new_pos>arena->commit_pos)
     {
-        u64 new_commit_pos=new_pos;
-        new_commit_pos+=arena->commit_size-1;
-        new_commit_pos-=new_commit_pos%arena->commit_size;
+        u64 new_commit_pos=ALIGN_UP_POW2(new_pos, arena->commit_size);
         new_commit_pos=MIN(new_commit_pos, arena->reserve_size);
 
         u8 *mem=(u8 *)arena+arena->commit_pos;
@@ -142,39 +167,3 @@ u0 arena_release_scratch(ArenaTemp scratch)
     return;
 }
 
-#ifndef _DEFAULT_SOURCE
-#define _DEFAULT_SOURCE
-#endif
-
-#include <unistd.h>
-#include <sys/mman.h>
-
-u32 get_pagesize(u0)
-{
-    return (u32)sysconf(_SC_PAGESIZE);
-}
-
-u0 *mem_reserve(u64 size)
-{
-    u0 *out = mmap(NULL, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if(out==MAP_FAILED) return NULL;
-
-    return out;
-}
-
-b32 mem_commit(u0 *ptr, u64 size)
-{
-    return !mprotect(ptr, size, PROT_READ | PROT_WRITE);
-}
-
-b32 mem_decommit(u0 *ptr, u64 size)
-{
-    if(mprotect(ptr, size, PROT_NONE)) return false;
-
-    return !madvise(ptr, size, MADV_DONTNEED);
-}
-
-b32 mem_release(u0 *ptr, u64 size)
-{
-    return !munmap(ptr, size);
-}
